@@ -1,0 +1,10 @@
+build
+
+Makefile
+sdkconfig
+sdkconfig.old
+
+tools/test_idf_monitor/outputs
+
+
+
