@@ -1,14 +1,29 @@
-
+// led_dimmer project
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "protocol_examples_common.h"
+#include "nvs.h"
+#include "nvs_flash.h"
+
+#include "lwip/sockets.h"
+#include "lwip/dns.h"
+#include "lwip/netdb.h"
+
+#include "mqtt_client.h"
+
 
 #include "driver/gpio.h"
+#include "driver/pwm.h"
 
 #include "esp_log.h"
 #include "esp_system.h"
@@ -17,11 +32,10 @@
 #include "esp8266/gpio_register.h"
 #include "esp8266/pin_mux_register.h"
 
-#include "driver/pwm.h"
 
 
 static const char *TAG = "led_dimmer";
-
+static const char *TAG_MQTT = "MQTT_CLI";
 
 #define PWM_CH0		   12
 #define PWM_CH1		   13
@@ -51,6 +65,13 @@ uint32_t duties[2] = {
 int16_t phase[2] = {
     0, 0, 
 };
+
+
+
+
+
+
+
 
 static void gpio_isr_handler(void *arg)
 {
@@ -116,6 +137,25 @@ static void pwm_task(void *arg)
 
 void app_main()
 {
+	ESP_ERROR_CHECK(nvs_flash_init());
+	ESP_ERROR_CHECK(esp_netif_init());
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+	ESP_ERROR_CHECK(example_connect());
+
+	ESP_LOGI(TAG_MQTT, "[APP] Startup ..");
+	ESP_LOGI(TAG_MQTT, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+	ESP_LOGI(TAG_MQTT, "[APP] IDF version: %s", esp_get_idf_version());
+
+	esp_log_level_set("*", ESP_LOG_INFO);
+	esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
+	esp_log_level_set("TRANSPORT_TCP", ESP_LOG_VERBOSE);
+	esp_log_level_set("TRANSPORT_SSL", ESP_LOG_VERBOSE);
+	esp_log_level_set("TRANSPORT", ESP_LOG_VERBOSE);
+	esp_log_level_set("OUTBOX", ESP_LOG_VERBOSE);
+
+
+
 	gpio_config_t io_conf;
 	io_conf.intr_type = GPIO_INTR_POSEDGE; //interrupt of rising edge
 	io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
@@ -129,10 +169,10 @@ void app_main()
 	
 	gpio_install_isr_service(0);
 	gpio_isr_handler_add(BUTTON, gpio_isr_handler, (void *) BUTTON);
+	
+	mqtt_app_start();
 
     while (1) {
-
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
 }
-
