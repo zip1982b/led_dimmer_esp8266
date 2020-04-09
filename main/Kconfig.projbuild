@@ -1,0 +1,31 @@
+menu "Example Configuration"
+
+config ESP_WIFI_SSID
+	string "WiFi SSID"
+	default "myssid"
+	help
+		SSID (network name) for the example to connect to.
+
+config ESP_WIFI_PASSWORD
+	string "WiFi Password"
+	default "mypass"
+	help
+		Wifi password (WPA or WPA2)
+
+config ESP_MAXIMUM_RETRY
+	int "Maximum retry"
+	default 5
+	help
+		Set the maximum retry
+
+config BROKER_URL
+    string "Broker URL"
+    default "mqtt://iot.eclipse.org"
+    help
+        URL of the broker to connect to
+
+config BROKER_URL_FROM_STDIN
+    bool
+    default y if BROKER_URL = "FROM_STDIN"
+
+endmenu
