@@ -85,6 +85,12 @@ int16_t phase[2] = {
     0, 0, 
 };
 
+//MQTT topic subscribe
+const char topic_dim_ch0_set[] = "/home/kitchen/light/dimmer/ch0/set";
+const char topic_dim_ch1_set[] = "/home/kitchen/light/dimmer/ch1/set";
+
+
+
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
@@ -175,10 +181,10 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 		case MQTT_EVENT_CONNECTED:
 			ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
 
-			msg_id = esp_mqtt_client_subscribe(client, "/light/kitchen/ch0/set", 0);
+			msg_id = esp_mqtt_client_subscribe(client, topic_dim_ch0_set, 0);
 			ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
 
-			msg_id = esp_mqtt_client_subscribe(client, "/light/kitchen/ch1/set", 0);
+			msg_id = esp_mqtt_client_subscribe(client, topic_dim_ch1_set, 0);
 			ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
 			break;
 
@@ -188,7 +194,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
 		case MQTT_EVENT_SUBSCRIBED:
 			ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-			msg_id = esp_mqtt_client_publish(client, "/light/kitchen/ch0/status", "500", 0, 0, 0);
+			msg_id = esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", "500", 0, 0, 0);
 			ESP_LOGI(TAG_MQTT, "sent publish successful, msg_id=%d", msg_id);
 			break;
 
@@ -202,8 +208,18 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
 		case MQTT_EVENT_DATA:
 			ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
-			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);//event->topic_len
 			printf("DATA=%.*s\r\n", event->data_len, event->data);
+			if(strncmp(topic_dim_ch0_set, event->topic, event->topic_len)==0){
+				printf("srtings equal\n");
+				printf("%s\n", topic_dim_ch0_set);
+			}
+			else{
+				printf("strings not equal\n");
+				printf("%s\n", topic_dim_ch0_set);
+				printf("%s\n", event->topic);
+
+			}	
 			break;
 		case MQTT_EVENT_ERROR:
 			ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
