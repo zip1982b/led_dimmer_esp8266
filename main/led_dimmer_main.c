@@ -176,6 +176,9 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
 	esp_mqtt_client_handle_t client = event->client;
 	int msg_id;
+	char duty[4];
+	char *duty_cycle;
+	duty_cycle = &duty;
 	// your_context_t *context = event->context;
 	switch (event->event_id) {
 		case MQTT_EVENT_CONNECTED:
@@ -208,17 +211,19 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 
 		case MQTT_EVENT_DATA:
 			ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
-			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);//event->topic_len
+			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
 			printf("DATA=%.*s\r\n", event->data_len, event->data);
+
 			if(strncmp(topic_dim_ch0_set, event->topic, event->topic_len)==0){
-				printf("srtings equal\n");
-				printf("%s\n", topic_dim_ch0_set);
+				ESP_LOGI(TAG_MQTT, "channel0");
+				xQueueSendToBack(mqtt_evt_queue, strncpy(duty_cycle, event->data, event->data_len), 100/portTICK_RATE_MS);		
+			}
+			else if(strncmp(topic_dim_ch1_set, event->topic, event->topic_len)==0){
+				ESP_LOGI(TAG_MQTT, "channel1");
+				xQueueSendToBack(mqtt_evt_queue, strncpy(duty_cycle, event->data, event->data_len), 100/portTICK_RATE_MS);
 			}
 			else{
-				printf("strings not equal\n");
-				printf("%s\n", topic_dim_ch0_set);
-				printf("%s\n", event->topic);
-
+				ESP_LOGI(TAG_MQTT, "topic strings not equal");
 			}	
 			break;
 		case MQTT_EVENT_ERROR:
@@ -244,7 +249,7 @@ static void pwm_task(void *arg)
 {
 	//gpio_set_intr_type(BUTTON, GPIO_INTR_DISABLE);
 	uint32_t io_num;
-	uint32_t mqtt_message;
+	char duty[4];
 	uint8_t state = 0;
 	pwm_init(PWM_PERIOD, duties, 2, pin_num);
 	pwm_set_phases(phase);
@@ -252,6 +257,7 @@ static void pwm_task(void *arg)
 
 	for (;;)
 	{
+		/* Channel 0 */
 		//if the button pressed
 		if (xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS)){
 			ESP_LOGI(TAG, "GPIO[%d] intr\n", io_num);
@@ -282,8 +288,9 @@ static void pwm_task(void *arg)
 			gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
 		}
 
-		//if receive the message from MQTT
-		if (xQueueReceive(mqtt_evt_queue, &mqtt_message, 100/portTICK_RATE_MS)){
+		//if receivied the message from MQTT
+		if (xQueueReceive(mqtt_evt_queue, &duty, 100/portTICK_RATE_MS)){
+			ESP_LOGI(TAG, "recv DUTY = %s", duty);
 
 		}
 	}
