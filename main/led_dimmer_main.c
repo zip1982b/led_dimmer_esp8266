@@ -274,17 +274,34 @@ static void pwm_task(void *arg)
 		switch(state_ch0)
 		{
 			case 0:
-				//ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
+				ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
 				if(xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS) && io_num == 5) 
 				{
 					state_ch0 = 2;
 					ESP_LOGI(TAG, "Button pressed - GPIO[%d] intr", io_num);
 					io_num = 0;
 				}
+				else if(xQueueReceive(mqtt_evt_queue, &xReceivedData, 100/portTICK_RATE_MS))
+				{
+					ESP_LOGI(TAG, "recv channel = %d", xReceivedData.channel);
+					ESP_LOGI(TAG, "recv duty cycle = %d", xReceivedData.duty);
+					if(xReceivedData.channel==0 && xReceivedData.duty>4)
+					{
+						state_ch0 = 1;
+						pwm_set_duty(0, xReceivedData.duty);
+						pwm_start();
+					}
+					else if(xReceivedData.channel==0 && xReceivedData.duty<4)
+					{
+						state_ch0 = 0;
+						pwm_stop(0x0); //!!! not ch1
+					}
+				}
+
 				break;
 
 			case 2:
-				//ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
+				ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
 				for(int32_t i=1; i<=1000; i=i+5)
 				{
 					pwm_set_duty(0, i);
@@ -296,17 +313,33 @@ static void pwm_task(void *arg)
 				break;
 
 			case 1:
-				//ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
+				ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
 				if(xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS) && io_num == 5)
 				{
 					state_ch0 = 3;
 					ESP_LOGI(TAG, "Button pressed - GPIO[%d] intr", io_num);
 					io_num = 0;
+				}				
+				else if(xQueueReceive(mqtt_evt_queue, &xReceivedData, 100/portTICK_RATE_MS))
+				{
+					ESP_LOGI(TAG, "recv channel = %d", xReceivedData.channel);
+					ESP_LOGI(TAG, "recv duty cycle = %d", xReceivedData.duty);
+					if(xReceivedData.channel==0 && xReceivedData.duty<=4)
+					{
+						state_ch0 = 0;
+						pwm_stop(0x0);//!!! not ch1
+					}
+					else if(xReceivedData.channel==0 && xReceivedData.duty>4)
+					{
+						state_ch0 = 1;
+						pwm_set_duty(0, xReceivedData.duty);
+						pwm_start();
+					}
 				}
 				break;
 
 			case 3:
-				//ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
+				ESP_LOGI(TAG, "state_ch0 = %d", state_ch0);
 				for(int32_t k=1000; k>=0; k=k-5)
 				{
 					pwm_set_duty(0, k);
@@ -317,43 +350,6 @@ static void pwm_task(void *arg)
 				state_ch0 = 0;
 				gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
 				break;
-		}
-		//if the button pressed
-		/*
-		if (xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS)){
-			ESP_LOGI(TAG, "GPIO[%d] intr\n", io_num);
-
-			//switch on
-			if (!state){
-
-				for(uint32_t i=1; i<=1000; i = i+5)
-				{
-					pwm_set_duty(0, i);
-					pwm_start();
-					vTaskDelay(10/portTICK_RATE_MS);
-				}
-				state = 1;
-			}
-			//switch off
-			else{
-				for(uint32_t k=1000; k>=1; k = k-5)
-				{
-					pwm_set_duty(0, k);
-					pwm_start();
-					vTaskDelay(10/portTICK_RATE_MS);
-
-				}
-				pwm_stop(0x0);
-				state = 0;
-			}
-			gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
-		}*/
-
-		//if receivied the message from MQTT
-		if (xQueueReceive(mqtt_evt_queue, &xReceivedData, 100/portTICK_RATE_MS)){
-			ESP_LOGI(TAG, "recv channel = %d", xReceivedData.channel);
-			ESP_LOGI(TAG, "recv duty cycle = %d", xReceivedData.duty);
-
 		}
 	}
 }	
