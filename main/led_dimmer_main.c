@@ -287,6 +287,8 @@ static void pwm_task(void *arg)
 							state = 1;
 							pwm_set_duty(0, xReceivedData);
 							pwm_start();
+							//esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", "500", 0, 0, 0);
+
 						}
 						else if(xReceivedData<4)
 						{
@@ -396,7 +398,7 @@ static void pwm_task(void *arg)
 
 
 
-static void mqtt_app_start(void)
+static void mqtt_client_app(void *arg)
 {
 	esp_mqtt_client_config_t mqtt_cfg = {
 		.uri = CONFIG_BROKER_URL,
@@ -406,6 +408,14 @@ static void mqtt_app_start(void)
 
 	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
 	esp_mqtt_client_start(client);
+	
+	for(;;)
+	{
+		esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", "500", 0, 0, 0);
+		vTaskDelay(1000/portTICK_RATE_MS);
+		
+	}
+
 }
 
 
@@ -452,11 +462,11 @@ void app_main()
 	
 	xTaskCreate(pwm_task, "pwm task for ch0", 2048, (void *) 0, 10, NULL);
 	xTaskCreate(pwm_task, "pwm task for ch1", 2048, (void *) 1, 10, NULL);
-
+	xTaskCreate(mqtt_client_app, "mqtt client", 2048, NULL, 10, NULL);
 	gpio_install_isr_service(0);
 	gpio_isr_handler_add(BUTTON, gpio_isr_handler, (void *) BUTTON);
 	
-	mqtt_app_start();
+	//mqtt_app_start();
 
     while (1) {
         vTaskDelay(1000 / portTICK_RATE_MS);
