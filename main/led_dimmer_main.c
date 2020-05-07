@@ -65,6 +65,8 @@ static int s_retry_num = 0;
 xQueueHandle gpio_evt_queue = NULL;
 xQueueHandle mqtt_dim0_queue = NULL;
 xQueueHandle mqtt_dim1_queue = NULL;
+xQueueHandle mqtt_ch0_state = NULL;
+xQueueHandle mqtt_ch1_state = NULL;
 
 // PWM period 1000us(1Khz), same as depth
 #define PWM_PERIOD    (1000)
@@ -255,11 +257,11 @@ static void gpio_isr_handler(void *arg)
 
 static void pwm_task(void *arg)
 {
-	uint8_t channel;
-	channel=(uint8_t)arg;	
+	int channel;
+	channel=(int)arg;	
 	uint32_t io_num;
 	uint32_t xReceivedData;
-	
+	uint32_t d;	
 	
 	uint8_t state = 0;
 
@@ -272,14 +274,13 @@ static void pwm_task(void *arg)
 		{
 			case 0:
 				if(channel == 0){
-					//ESP_LOGI(TAG, "ch0 - state = %d", state);
-					if(xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS) && io_num == 5) 
+					if(xQueueReceive(gpio_evt_queue, &io_num, 0) && io_num == 5) 
 					{
 						state = 2;
 						ESP_LOGI(TAG, "ch0 - Button pressed - GPIO[%d] intr, state = %d", io_num, state);
 						io_num = 0;
 					}
-					else if(xQueueReceive(mqtt_dim0_queue, &xReceivedData, 100/portTICK_RATE_MS))
+					else if(xQueueReceive(mqtt_dim0_queue, &xReceivedData, 0))
 					{
 						ESP_LOGI(TAG, "ch0 - recv duty cycle = %d, state = %d", xReceivedData, state);
 						if(xReceivedData>4)
@@ -287,7 +288,6 @@ static void pwm_task(void *arg)
 							state = 1;
 							pwm_set_duty(0, xReceivedData);
 							pwm_start();
-							//esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", "500", 0, 0, 0);
 
 						}
 						else if(xReceivedData<4)
@@ -296,11 +296,13 @@ static void pwm_task(void *arg)
 							pwm_set_duty(0, xReceivedData);
 							pwm_start();
 						}
+
+						xQueueSendToBack(mqtt_ch0_state, &xReceivedData, 0);
+						
 					}
 				}
 				else if(channel == 1){
-					//ESP_LOGI(TAG, "ch1 - state = %d", state);
-					if(xQueueReceive(mqtt_dim1_queue, &xReceivedData, 100/portTICK_RATE_MS)){	
+					if(xQueueReceive(mqtt_dim1_queue, &xReceivedData, 0)){	
 						ESP_LOGI(TAG, "ch1 - recv duty cycle = %d, state = %d", xReceivedData, state);
 						if(xReceivedData>4)
 						{
@@ -314,13 +316,13 @@ static void pwm_task(void *arg)
 							pwm_set_duty(1, xReceivedData);
 							pwm_start();
 						}
+						xQueueSendToBack(mqtt_ch1_state, &xReceivedData, 0);
 					}
 				}
 				break;
 
 			case 2:
 				if(channel == 0){
-					ESP_LOGI(TAG, "ch0 - state = %d", state);	
 					for(int32_t i=1; i<=1000; i=i+5)
 					{
 						pwm_set_duty(0, i);
@@ -328,21 +330,23 @@ static void pwm_task(void *arg)
 						vTaskDelay(10/portTICK_RATE_MS);
 					}
 					state = 1;
+					d = 1000;
+					xQueueSendToBack(mqtt_ch0_state, &d, 0);
+					d = 0;
 					gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
 				}
 				break;
 
 			case 1:
 				if(channel == 0){	
-					//ESP_LOGI(TAG, "ch0 - state = %d", state);
 
-					if(xQueueReceive(gpio_evt_queue, &io_num, 100/portTICK_RATE_MS) && io_num == 5)
+					if(xQueueReceive(gpio_evt_queue, &io_num, 0) && io_num == 5)
 					{
 						state = 3;
 						ESP_LOGI(TAG, "ch0 - Button pressed - GPIO[%d] intr, state = %d", io_num, state);
 						io_num = 0;
 					}				
-					else if(xQueueReceive(mqtt_dim0_queue, &xReceivedData, 100/portTICK_RATE_MS))
+					else if(xQueueReceive(mqtt_dim0_queue, &xReceivedData, 0))
 					{
 						ESP_LOGI(TAG, "ch0 - recv duty cycle = %d, state = %d", xReceivedData, state);
 						if(xReceivedData<=4)
@@ -357,11 +361,12 @@ static void pwm_task(void *arg)
 							pwm_set_duty(0, xReceivedData);
 							pwm_start();
 						}
+						xQueueSendToBack(mqtt_ch0_state, &xReceivedData, 0);
+
 					}
 				}
 				if(channel == 1){
-					//ESP_LOGI(TAG, "ch1 - state = %d", state);
-					if(xQueueReceive(mqtt_dim1_queue, &xReceivedData, 100/portTICK_RATE_MS)){
+					if(xQueueReceive(mqtt_dim1_queue, &xReceivedData, 0)){
 						ESP_LOGI(TAG, "ch1 - recv duty cycle = %d, state = %d", xReceivedData, state);
 						if(xReceivedData<=4)
 						{
@@ -375,6 +380,8 @@ static void pwm_task(void *arg)
 							pwm_set_duty(1, xReceivedData);
 							pwm_start();
 						}
+						xQueueSendToBack(mqtt_ch1_state, &xReceivedData, 0);
+
 					}
 				}
 				break;
@@ -389,16 +396,21 @@ static void pwm_task(void *arg)
 						vTaskDelay(10/portTICK_RATE_MS);
 					}
 					state = 0;
+					d = 0;
+					xQueueSendToBack(mqtt_ch0_state, &d, 0);
+
 					gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
 				}
 				break;
 		}
+		vTaskDelay(100/portTICK_RATE_MS);
+		
 	}
 }
 
 
 
-static void mqtt_client_app(void *arg)
+static void mqtt_client_pub(void *arg)
 {
 	esp_mqtt_client_config_t mqtt_cfg = {
 		.uri = CONFIG_BROKER_URL,
@@ -408,11 +420,25 @@ static void mqtt_client_app(void *arg)
 
 	esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
 	esp_mqtt_client_start(client);
-	
+	uint32_t state_ch0;
+	uint32_t state_ch1;
+	char buf_ch0[5];
+	char buf_ch1[5];
 	for(;;)
 	{
-		esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", "500", 0, 0, 0);
-		vTaskDelay(1000/portTICK_RATE_MS);
+
+		if(xQueueReceive(mqtt_ch0_state, &state_ch0, 100/portTICK_RATE_MS)){
+			sprintf(buf_ch0, "%d", state_ch0);
+			esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch0/status", buf_ch0, 0, 0, 0);
+			
+		}
+		else if(xQueueReceive(mqtt_ch1_state, &state_ch1, 100/portTICK_RATE_MS)){
+			sprintf(buf_ch1, "%d", state_ch1);
+			esp_mqtt_client_publish(client, "/home/kitchen/light/dimmer/ch1/status", buf_ch1, 0, 0, 0);
+
+		}
+
+		vTaskDelay(10/portTICK_RATE_MS);
 		
 	}
 
@@ -430,6 +456,7 @@ void app_main()
 	ESP_ERROR_CHECK(esp_netif_init());
 	//ESP_ERROR_CHECK(esp_event_loop_create_default());
 	wifi_init_sta();
+        vTaskDelay(5000 / portTICK_RATE_MS);
 
 
 	//ESP_ERROR_CHECK(example_connect());
@@ -456,13 +483,15 @@ void app_main()
 	gpio_evt_queue = xQueueCreate(1, sizeof(uint32_t));
 	mqtt_dim0_queue = xQueueCreate(5, sizeof(uint32_t));
 	mqtt_dim1_queue = xQueueCreate(5, sizeof(uint32_t));
-	
+	mqtt_ch0_state = xQueueCreate(5, sizeof(uint32_t));
+	mqtt_ch1_state = xQueueCreate(5, sizeof(uint32_t));
+
 	pwm_init(PWM_PERIOD, duties, 2, pin_num);
 	pwm_set_phases(phase);
 	
 	xTaskCreate(pwm_task, "pwm task for ch0", 2048, (void *) 0, 10, NULL);
 	xTaskCreate(pwm_task, "pwm task for ch1", 2048, (void *) 1, 10, NULL);
-	xTaskCreate(mqtt_client_app, "mqtt client", 2048, NULL, 10, NULL);
+	xTaskCreate(mqtt_client_pub, "mqtt client pulish", 2048, NULL, 10, NULL);
 	gpio_install_isr_service(0);
 	gpio_isr_handler_add(BUTTON, gpio_isr_handler, (void *) BUTTON);
 	
