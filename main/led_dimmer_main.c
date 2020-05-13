@@ -333,7 +333,7 @@ static void pwm_task(void *arg)
 					d = 1000;
 					xQueueSendToBack(mqtt_ch0_state, &d, 0);
 					d = 0;
-					gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
+					gpio_set_intr_type(BUTTON, GPIO_INTR_NEGEDGE);
 				}
 				break;
 
@@ -398,8 +398,7 @@ static void pwm_task(void *arg)
 					state = 0;
 					d = 0;
 					xQueueSendToBack(mqtt_ch0_state, &d, 0);
-
-					gpio_set_intr_type(BUTTON, GPIO_INTR_POSEDGE);
+					gpio_set_intr_type(BUTTON, GPIO_INTR_NEGEDGE);
 				}
 				break;
 		}
@@ -454,12 +453,10 @@ void app_main()
   
 	ESP_ERROR_CHECK(nvs_flash_init());
 	ESP_ERROR_CHECK(esp_netif_init());
-	//ESP_ERROR_CHECK(esp_event_loop_create_default());
 	wifi_init_sta();
         vTaskDelay(5000 / portTICK_RATE_MS);
 
 
-	//ESP_ERROR_CHECK(example_connect());
 
 	ESP_LOGI(TAG_MQTT, "[APP] Startup ..");
 	ESP_LOGI(TAG_MQTT, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
@@ -475,7 +472,7 @@ void app_main()
 
 
 	gpio_config_t io_conf;
-	io_conf.intr_type = GPIO_INTR_POSEDGE; //interrupt of rising edge
+	io_conf.intr_type = GPIO_INTR_NEGEDGE;
 	io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
 	io_conf.mode = GPIO_MODE_INPUT;
 	gpio_config(&io_conf);
